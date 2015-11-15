@@ -888,15 +888,16 @@ class Gap_generic(Expect):
         #is in the 'last' variable in GAP.  If the function returns a
         #value, then that value will be in 'last', otherwise it will
         #be the marker.
-        self.eval('__SAGE_LAST__ := "__SAGE_LAST__";;')
-        res = self.eval("%s(%s);;"%(function, ",".join([s.name() for s in args]+
-                        ['%s=%s'%(key,value.name()) for key, value in kwds.items()])))
-        if self.eval('IsIdenticalObj(last, __SAGE_LAST__)') != 'true':
-            return self.new('last2;')
+        res = self.eval('__SAGE_LAST__ := "__SAGE_LAST__";;' + \
+                        "__SAGE_VAL__ := %s(%s);;"%(function, ",".join([s.name() for s in args]+
+                        ['%s=%s'%(key,value.name()) for key, value in kwds.items()])) + \
+                        'Print(IsIdenticalObj(last, __SAGE_LAST__));')
+        if res[-4:] != 'true':
+            return self.new('__SAGE_VAL__')
         else:
-            if res.strip():
+            if res[:-4].strip():
                 from sage.interfaces.expect import AsciiArtString
-                return AsciiArtString(res)
+                return AsciiArtString(res[:-4])
 
     def trait_names(self):
         """
