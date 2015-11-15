@@ -891,19 +891,25 @@ class Gap_generic(Expect):
         marker = '__SAGE_LAST__:="__SAGE_LAST__";;'
         cmd = "%s(%s);;"%(function, ",".join([s.name() for s in args]+
                 ['%s=%s'%(key,value.name()) for key, value in kwds.items()]))
-        if len(marker) + len(cmd) <= self._eval_using_file_cutoff:
-            # We combine the two commands so we only run eval() once and the
-            #   only output would be from the second command
-            res = self.eval(marker+cmd)
+        # 34 is the length of the check after for the marker
+        if len(marker) + len(cmd) + 34 <= self._eval_using_file_cutoff:
+            res = self.eval(marker+cmd+'IsIdenticalObj(last,__SAGE_LAST__)')
+            if res[-4:] != 'true':
+                return self.new('last2;')
+            res = res[:-4]
         else:
-            self.eval(marker)
-            res = self.eval(cmd)
-        if self.eval('IsIdenticalObj(last,__SAGE_LAST__)') != 'true':
-            return self.new('last2;')
-        else:
-            if res.strip():
-                from sage.interfaces.expect import AsciiArtString
-                return AsciiArtString(res)
+            if len(marker) + len(cmd) <= self._eval_using_file_cutoff:
+                # We combine the two commands so we only run eval() once and the
+                #   only output would be from the second command
+                res = self.eval(marker+cmd)
+            else:
+                self.eval(marker)
+                res = self.eval(cmd)
+            if self.eval('IsIdenticalObj(last,__SAGE_LAST__)') != 'true':
+                return self.new('last2;')
+        if res.strip():
+            from sage.interfaces.expect import AsciiArtString
+            return AsciiArtString(res)
 
     def trait_names(self):
         """
