@@ -1270,6 +1270,7 @@ class SingularElement(ExpectElement):
         else:
             self._name = value
         self._session_number = parent._session_number
+        self._get_using_file = False
 
     def __repr__(self):
         r"""
@@ -1306,10 +1307,9 @@ class SingularElement(ExpectElement):
             self._check_valid()
         except ValueError:
             return '(invalid object -- defined in terms of closed session)'
-        try:
-            if self._get_using_file:
-                s = self.parent().get_using_file(self._name)
-        except AttributeError:
+        if self._get_using_file:
+            s = self.parent().get_using_file(self._name)
+        else:
             s = self.parent().get(self._name)
         if s.__contains__(self._name):
             if hasattr(self, '__custom_name'):
