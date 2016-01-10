@@ -155,6 +155,7 @@ can be applied on both. Here is what it can do:
     :meth:`~GenericGraph.is_vertex_transitive` | Return whether the automorphism group of self is transitive within the partition provided
     :meth:`~GenericGraph.is_isomorphic` | Test for isomorphism between self and other.
     :meth:`~GenericGraph.canonical_label` | Return the unique graph on `\{0,1,...,n-1\}` ( ``n = self.order()`` ) which 1) is isomorphic to self 2) is invariant in the isomorphism class.
+    :meth:`~GenericGraph.cayley_graph_group` | Return a group for which self is a Cayley graph.
     :meth:`~GenericGraph.is_cayley` | Check whether self is a Cayley graph.
 
 **Graph properties:**
@@ -816,7 +817,7 @@ class GenericGraph(GenericGraph_pyx):
     ### Formats
 
     def copy(self, weighted=None, implementation='c_graph', data_structure=None,
-             sparse=None, immutable=None):
+             sparse=None, immutable=None, data=None, loops=None, multiedges=None):
         """
         Change the graph implementation
 
@@ -847,6 +848,18 @@ class GenericGraph(GenericGraph_pyx):
            * ``immutable=False`` sets ``implementation`` to ``'c_graph'``. When
              ``immutable=False`` is used to copy an immutable graph, the data
              structure used is ``"sparse"`` unless anything else is specified.
+
+         - ``data`` (default: ``None``) -- the graph data to be used in the
+           copy. If ``None``, self is copied, otherwise only the properties
+           that are not specified as parameters are obtained from self.
+           ``data`` is expected to be "compatible" with self, e.g., with only
+           edge and/or vertex labels changed. See the documentation of
+           :class:`Graph` or :class:`DiGraph` for possible values.
+
+         - ``loops`` (boolean) -- whether to allow loops in the copy.
+
+         - ``multiedges`` (boolean) -- whether to allow multiple edges in the
+           copy.
 
         .. NOTE::
 
@@ -1006,6 +1019,17 @@ class GenericGraph(GenericGraph_pyx):
             sage: G.copy()._backend
             <type 'sage.graphs.base.sparse_graph.SparseGraphBackend'>
         """
+        if data is None:
+            # If no data is specified, use self
+            data = self
+        else:
+            # Otherwise, make sure that the loops
+            # and multiedges settings are respected
+            if loops is None:
+                loops = self.allows_loops()
+            if multiedges is None:
+                multiedges = self.allows_multiple_edges()
+
         # Which data structure should be used ?
         if implementation != 'c_graph':
             # We do not care about the value of data_structure. But let's check
@@ -1038,8 +1062,8 @@ class GenericGraph(GenericGraph_pyx):
             data_structure = "dense"
 
         # Immutable copy of an immutable graph ? return self !
-        # (if okay for weightedness)
-        if (self.is_immutable() and
+        # (if okay for data and weightedness)
+        if (self.is_immutable() and data is self and
                 (weighted is None or self._weighted == weighted)):
             from sage.graphs.base.static_sparse_backend import StaticSparseBackend
             if (isinstance(self._backend, StaticSparseBackend) and
@@ -1054,10 +1078,11 @@ class GenericGraph(GenericGraph_pyx):
             else:
                 data_structure = "sparse"
 
-        G = self.__class__(self, name=self.name(), pos=copy(self._pos),
+        G = self.__class__(data, name=self.name(), pos=copy(self._pos),
                            weighted=weighted,
                            implementation=implementation,
-                           data_structure=data_structure)
+                           data_structure=data_structure,
+                           loops=loops, multiedges=multiedges)
 
         attributes_to_copy = ('_assoc', '_embedding')
         for attr in attributes_to_copy:
@@ -20788,6 +20813,90 @@ class GenericGraph(GenericGraph_pyx):
         else:
             return H
 
+    def cayley_graph_group(self, return_group = True):
+        r"""
+        Return a group such that self is its Cayley graph.
+
+        .. NOTE::
+
+            For this routine to work on all graphs, the optional packages
+            gap_packages and database_gap need to be installed: to do so,
+            it is enough to run ``sage -i gap_packages database_gap``.
+
+        INPUT:
+
+        - ``return_group`` (boolean, default: ``True``) -- If ``True``, a
+          group is returned, or ``None`` if no appropriate group exists.
+          If ``False``, return whether the graph is a Cayley graph.
+
+        ALGORITHM:
+
+        Check that the graph is vertex-transitive, and then find a regular
+        subgroup of the automorphism group of a connected component. For
+        disconnected graphs, construct a group that is isomorphic to the
+        direct product of said group and a cyclic group of appropriate size.
+
+        EXAMPLES:
+
+        A Petersen Graph is not a Cayley graph::
+
+            sage: g = graphs.PetersenGraph()
+            sage: g.cayley_graph_group()
+            <BLANKLINE>
+
+        A Cayley digraph is a Cayley graph::
+
+            sage: C7 = groups.permutation.Cyclic(7)
+            sage: S = [(1,2,3,4,5,6,7), (1,3,5,7,2,4,6), (1,5,2,6,3,7,4)]
+            sage: d = C7.cayley_graph(generators=S)
+            sage: d.cayley_graph_group(return_group = False)
+            True
+
+        TESTS:
+
+        The order of the returned group equals the order of the graph::
+
+            sage: g = graphs.PaleyGraph(9)
+            sage: G = g.cayley_graph_group()
+            sage: g.order()
+            9
+            sage: G.order()
+            9
+
+        The same is also true for disconnected graphs::
+
+            sage: g = graphs.PaleyGraph(9)
+            sage: h = g.disjoint_union(g)
+            sage: h = h.disjoint_union(h)
+            sage: h = h.disjoint_union(g)
+            sage: H = h.cayley_graph_group()
+            sage: h.order()
+            45
+            sage: H.order()
+            45
+
+        """
+        if len(self) == 0 or not self.is_vertex_transitive():
+            return None if return_group else False
+        C = self.connected_components_subgraphs()
+        A = C[0].automorphism_group()
+        if not return_group:
+            return A.regular_subgroup(return_group = False)
+        G = A.regular_subgroup()
+        if G is None:
+            return None
+        if len(C) > 1:
+            from sage.groups.perm_gps.permgroup import PermutationGroup
+            I = [C[0].is_isomorphic(g, certify=True)[1] for g in C]
+            inflate = lambda T: [sum([[tuple([M[x] for x in p])
+                    for p in h.cycle_tuples()] for M in I], [])
+                    for h in T]
+            gens = inflate(G.gens()) + [[tuple([M[v] for M in I])
+                                         for v in C[0].vertices()]]
+            return PermutationGroup(gens, domain = self.vertices())
+        else:
+            return G
+
     def is_cayley(self, certificate = False):
         r"""
         Check whether self is a Cayley graph.
@@ -20803,18 +20912,13 @@ class GenericGraph(GenericGraph_pyx):
         - ``certificate`` (boolean) -- The function returns ``True``
           or ``False`` according to the graph, when ``certificate =
           False`` (default). When ``certificate = True`` and the graph
-          is a Cayley graph, the function returns ``(True, grp, gens)``,
-          where ``grp`` is a subgroup of the automorphism group of the graph
-          and ``gens`` is a list of its generators for which it is a Cayley
-          graph. When ``certificate = True`` and the graph is not a Cayley
-          graph, ``(False, None, None)`` is returned.
-
-        ALGORITHM:
-
-        For connected graphs, find a regular subgroup of the automorphism
-        group. For disconnected graphs, check that the graph is
-        vertex-transitive and perform the check on one of its connected
-        components.
+          is a Cayley graph, the function returns ``(True, C)``, where ``C``
+          is a copy of the graph with edges labelled by members of the
+          generating set, and with vertices associated to group members. If
+          the graph is undirected, edge labels of order greater than 2 do not
+          appear simultaneously with their inverses. When
+          ``certificate = True`` and the graph is not a Cayley graph,
+          ``(False, None)`` is returned.
 
         EXAMPLES:
 
@@ -20834,78 +20938,64 @@ class GenericGraph(GenericGraph_pyx):
 
         TESTS:
 
-        Cayley graphs can be reconstructed from the certificate::
-
-            sage: g = graphs.PaleyGraph(9)
-            sage: _, G, S = Graph.is_cayley(g, certificate=True)
-            sage: Graph(G.cayley_graph(generators=S)).is_isomorphic(g)
-            True
-
-        The same also holds for disconnected graphs::
+        The certificate is isomorphic to the original graph. This is also
+        true for disconnected graphs::
 
             sage: g = graphs.PaleyGraph(9)
             sage: h = g.disjoint_union(g)
             sage: h = h.disjoint_union(h)
             sage: h = h.disjoint_union(g)
-            sage: _, G, S = h.is_cayley(certificate=True)
-            sage: Graph(G.cayley_graph(generators=S)).is_isomorphic(h)
+            sage: _, C = h.is_cayley(certificate=True)
+            sage: C.is_isomorphic(h)
             True
 
-        Graphs with loops and multiedges will have identity and repeated
-        elements, respectively, among the generators::
+        One may check that the labels really define a Cayley graph::
+
+            sage: g = graphs.HeawoodGraph()
+            sage: _, C = g.is_cayley(certificate=True)
+            sage: all(C.get_vertex(x)^-1 * C.get_vertex(y) in [l, l^-1] for x, y, l in C.edge_iterator())
+            True
+
+        Loops in the certificate are labelled with identity, while mutltiple
+        edges between two vertices will have the same label::
 
             sage: g = Graph(graphs.PaleyGraph(9), loops=True, multiedges=True)
             sage: g.add_edges([(u, u) for u in g.vertex_iterator()])
             sage: g.add_edges([(u, u+1) for u in g.vertex_iterator()])
-            sage: _, G, S = g.is_cayley(certificate=True)
-            sage: S
-            [(),
-             (0,1,2)(a,a + 1,a + 2)(2*a,2*a + 1,2*a + 2),
-             (0,1,2)(a,a + 1,a + 2)(2*a,2*a + 1,2*a + 2),
-             (0,2,1)(a,a + 2,a + 1)(2*a,2*a + 2,2*a + 1),
-             (0,2,1)(a,a + 2,a + 1)(2*a,2*a + 2,2*a + 1),
-             (0,a + 1,2*a + 2)(1,a + 2,2*a)(2,a,2*a + 1),
-             (0,2*a + 2,a + 1)(1,2*a,a + 2)(2,2*a + 1,a)]
+            sage: _, C = g.is_cayley(certificate=True)
+            sage: list(C.edge_iterator(0))
+            [(0, 0, ()),
+             (0, 1, (0,2,1)(a,a + 2,a + 1)(2*a,2*a + 2,2*a + 1)),
+             (0, 1, (0,2,1)(a,a + 2,a + 1)(2*a,2*a + 2,2*a + 1)),
+             (0, 2, (0,2,1)(a,a + 2,a + 1)(2*a,2*a + 2,2*a + 1)),
+             (0, 2, (0,2,1)(a,a + 2,a + 1)(2*a,2*a + 2,2*a + 1)),
+             (0, a + 1, (0,2*a + 2,a + 1)(1,2*a,a + 2)(2,2*a + 1,a)),
+             (0, 2*a + 2, (0,2*a + 2,a + 1)(1,2*a,a + 2)(2,2*a + 1,a))]
 
         """
-        if not self.is_connected():
-            if self.is_vertex_transitive():
-                C = self.connected_components_subgraphs()
-                if certificate:
-                    c, G, S = C[0].is_cayley(certificate=True)
-                    if c:
-                        from sage.groups.perm_gps.permgroup import PermutationGroup
-                        I = [C[0].is_isomorphic(g, certify=True)[1] for g in C]
-                        inflate = lambda T: [sum([[tuple([M[x] for x in p])
-                                for p in h.cycle_tuples()] for M in I], [])
-                                for h in T]
-                        # gens generate the direct product of G and a cyclic group
-                        gens = inflate(G.gens()) + \
-                                [[tuple([M[v] for M in I])
-                                  for v in C[0].vertices()]]
-                        return (True,
-                                PermutationGroup(gens, domain = self.vertices()),
-                                inflate(S))
-                else:
-                    return C[0].is_cayley()
+        G = self.cayley_graph_group(return_group = certificate)
+        if not certificate:
+            return G
+        elif G is None:
+            return (False, None)
+        v = next(self.vertex_iterator())
+        d = {(f**-1)(v): f for f in G}
+        if self.is_directed():
+            g = lambda h: h
         else:
-            A = self.automorphism_group()
-            if certificate:
-                G = A.regular_subgroup()
-                if G is not None:
-                    v = next(self.vertex_iterator())
-                    d = {f(v): f for f in G}
-                    # self.(out_)neighbors ignores multiedges,
-                    # so we use edge_iterator instead
-                    adj = [y if v == x else x for x, y, z in self.edge_iterator(v)]
-                    S = [d[u] for u in adj]
-                    return (True, G, S)
-            else:
-                return A.regular_subgroup(return_group = False)
-        if certificate:
-            return (False, None, None)
-        else:
-            return False
+            gs = set()
+            def g(h):
+                if h**-1 in gs:
+                    return h**-1
+                elif h not in gs:
+                    gs.add(h)
+                return h
+        H = self.copy(data = [self.vertices(),
+                              [(x, y, g(d[x]**-1 * d[y]))
+                               for x, y, l in self.edge_iterator()]],
+                      weighted = False)
+        H.set_vertices(d)
+        return (True, H)
 
 import types
 
