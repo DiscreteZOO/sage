@@ -1022,7 +1022,7 @@ class InterfaceElement(RingElement):
             s = self.parent().get_using_file(self._name)
         else:
             s = self.parent().get(self._name)
-        if s.__contains__(self._name):
+        if self._name in s:
             try:
                 s = s.replace(self._name, self.__custom_name)
             except AttributeError:
