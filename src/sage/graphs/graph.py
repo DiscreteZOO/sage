@@ -6905,6 +6905,172 @@ class Graph(GenericGraph):
                         T[2 * j + 1, 2 * i] = 1
         return T.charpoly('t').reverse()
 
+    def is_partial_cube(self, certificate=False):
+        self._scream_if_not_simple()
+        from sage.categories.sets_cat import EmptySetError
+        try:
+            if not self.is_connected():
+                raise EmptySetError("graph is not connected")
+            n = self.order()
+
+            # Initial sanity check: are there few enough edges?
+            # Needed so that we don't try to use union-find on a dense
+            # graph and incur superquadratic runtimes.
+            if 1 << (2*self.size()//n) > n:
+                raise EmptySetError("graph has too many edges")
+
+            # Set up data structures for algorithm:
+            # - UF: union find data structure representing known edge equivalences
+            # - NL: limit on number of remaining available labels
+            from sage.sets.disjoint_set import DisjointSet
+            CG = DiGraph({v: {w: (v, w) for w in self[v]} for v in self})
+            UF = DisjointSet(CG.edges(labels = False))
+            NL = n-1
+
+            # Main contraction loop in place of the original algorithm's recursion
+            while CG.order() > 1:
+                if not Graph(CG).is_bipartite():
+                    raise EmptySetError("graph is not bipartite")
+
+                # Find max degree vertex in CG, and update label limit
+                deg, root = max((len(CG[v]), v) for v in CG)
+                if deg > NL:
+                    raise EmptySetError("graph has too many equivalence classes")
+                NL -= deg
+
+                # Set up bitvectors on vertices
+                bitvec = {v:0 for v in CG}
+                neighbors = {}
+                for i, neighbor in enumerate(CG[root]):
+                    bitvec[neighbor] = 1 << i
+                    neighbors[1 << i] = neighbor
+
+                # Breadth first search to propagate bitvectors to the rest of the graph
+                for LG in CG.breadth_first_level_search(root):
+                    for v in LG:
+                        for w in LG[v]:
+                            bitvec[w] |= bitvec[v]
+
+                # Make graph of labeled edges and union them together
+                labeled = Graph([CG.vertices(), []])
+                for v, w in CG.edge_iterator(labels = False):
+                    diff = bitvec[v]^bitvec[w]
+                    if not diff or bitvec[w] &~ bitvec[v] == 0:
+                        continue    # zero edge or wrong direction
+                    if diff not in neighbors:
+                        raise EmptySetError("multiply-labeled edge")
+                    neighbor = neighbors[diff]
+                    UF.union(CG.edge_label(v, w), CG.edge_label(root, neighbor))
+                    UF.union(CG.edge_label(w, v), CG.edge_label(neighbor, root))
+                    labeled.add_edge(v, w)
+
+                # Map vertices to components of labeled-edge graph
+                component = {}
+                for i, SCC in enumerate(labeled.connected_components()):
+                    for v in SCC:
+                        component[v] = i
+
+                # generate new compressed subgraph
+                NG = DiGraph(labeled.connected_components_number())
+                for v, w, t in CG.edge_iterator():
+                    if bitvec[v] == bitvec[w]:
+                        vi = component[v]
+                        wi = component[w]
+                        if vi == wi:
+                            raise EmptySetError("self-loop in contracted graph")
+                        if wi in NG.neighbors_out(vi):
+                            UF.union(NG.edge_label(vi, wi), t)
+                        else:
+                            NG.add_edge(vi, wi, t)
+                CG = NG
+
+            g = DiGraph({v: {w: UF.find((v, w)) for w in self[v]} for v in self})
+            action = {v: {} for v in g}
+            reverse = {}
+            for v, w, t in g.edge_iterator():
+                if t in action[v]:
+                    raise EmptySetError("multiple edges for state %s and token %s" % (v,t))
+                action[v][t] = w
+                rt = g.edge_label(w, v)
+                if t not in reverse:
+                    if rt in reverse:
+                        raise EmptySetError("mismatched token reversals")
+                    reverse[t] = rt
+                    reverse[rt] = t
+                elif rt != reverse[t]:
+                    raise EmptySetError("mismatched token reversals")
+            current = initialState = next(g.vertex_iterator())
+
+            # find list of tokens that lead to the initial state
+            activeTokens = set()
+            for LG in g.breadth_first_level_search(initialState):
+                for v in LG:
+                    for w in LG[v]:
+                        activeTokens.add(g.edge_label(w, v))
+            for t in activeTokens:
+                if reverse[t] in activeTokens:
+                    raise EmptySetError("shortest path to initial state is not concise")
+            activeTokens = list(activeTokens)
+
+            # rest of data structure: point from states to list and list to states
+            activeForState = {v: -1 for v in g}
+            statesForPos = [[] for i in activeTokens]
+
+            def scan(v):
+                """Find the next token that is effective for v."""
+                try:
+                    a = next(i for i in range(activeForState[v]+1,
+                                              len(activeTokens))
+                             if activeTokens[i] is not None
+                             and activeTokens[i] in action[v])
+                    activeForState[v] = a
+                    statesForPos[a].append(v)
+                except StopIteration:
+                    raise EmptySetError
+
+            if certificate:
+                dim = 0
+                tokmap = {}
+                for t in reverse:
+                    if t not in tokmap:
+                        tokmap[t] = tokmap[reverse[t]] = 1 << dim
+                        dim += 1
+                embed = {initialState: 0}
+
+            # set initial active states
+            for v in g:
+                if v != current:
+                    scan(v)
+
+            # traverse the graph, maintaining active tokens
+            for prev, current, fwd in g.depth_first_traversal(initialState):
+                if not fwd:
+                    prev, current = current, prev
+                elif certificate:
+                    embed[current] = embed[prev] ^ \
+                                        tokmap[g.edge_label(prev, current)]
+
+                # add token to end of list, point to it from old state
+                activeTokens.append(g.edge_label(prev, current))
+                activeForState[prev] = len(activeTokens) - 1
+                statesForPos.append([prev])
+
+                # inactivate reverse token, find new token for its states
+                activeTokens[activeForState[current]] = None
+                for v in statesForPos[activeForState[current]]:
+                    if v != current:
+                        scan(v)
+
+            if certificate:
+                format = "{0:0%db}" % dim
+                return {v: format.format(l) for v, l in embed.items()}
+            else:
+                return True
+        except EmptySetError as ex:
+            if certificate:
+                raise ex
+            else:
+                return False
 
 # Aliases to functions defined in Cython modules
 import types

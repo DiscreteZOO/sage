@@ -16030,6 +16030,33 @@ class GenericGraph(GenericGraph_pyx):
                             else:
                                 yield w
 
+    def breadth_first_level_search(self, start, ignore_direction=False,
+                                   distance=None, neighbors=None):
+        from sage.rings.semirings.non_negative_integer_semiring import NN
+        if (distance is not None and distance not in NN):
+            raise ValueError("distance must be a non-negative integer, not {0}".format(distance))
+        if neighbors is None:
+            if not self._directed or ignore_direction:
+                neighbors = self.neighbor_iterator
+            else:
+                neighbors = self.neighbor_out_iterator
+        visited = set()
+        if isinstance(start, list):
+            currentLevel = start
+        else:
+            currentLevel = [start]
+        while currentLevel:
+            visited.update(currentLevel)
+            nextLevel = set()
+            levelGraph = {v: set() for v in currentLevel}
+            for v in currentLevel:
+                for w in neighbors(v):
+                    if w not in visited:
+                        levelGraph[v].add(w)
+                        nextLevel.add(w)
+            yield levelGraph
+            currentLevel = nextLevel
+
     def depth_first_search(self, start, ignore_direction=False,
                            distance=None, neighbors=None):
         """
@@ -16142,6 +16169,37 @@ class GenericGraph(GenericGraph_pyx):
                         for w in neighbors(v):
                             if w not in seen:
                                 queue.append((w, d+1))
+
+    def depth_first_traversal(self, start, ignore_direction=False,
+                              neighbors=None):
+        if neighbors is None:
+            if not self._directed or ignore_direction:
+                neighbors=self.neighbor_iterator
+            else:
+                neighbors=self.neighbor_out_iterator
+        else:
+            neighbors = lambda v: iter(neighbors(v))
+        seen=set([])
+        if not isinstance(start, list):
+            start = [start]
+
+        for v in start:
+            if v in seen:
+                continue
+            seen.add(v)
+            stack = [(v, neighbors(v))]
+            while stack:
+                parent, children = stack[-1]
+                try:
+                    child = next(children)
+                    if child not in seen:
+                        yield (parent, child, True)
+                        seen.add(child)
+                        stack.append((child, neighbors(child)))
+                except StopIteration:
+                    stack.pop()
+                    if stack:
+                        yield (stack[-1][0], parent, False)
 
     def lex_BFS(self,reverse=False,tree=False, initial_vertex = None):
         r"""
