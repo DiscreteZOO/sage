@@ -1,15 +1,13 @@
 r"""
 Partial cubes
 
-A partial cube is a graph that can be isometrically embedded into a hypercube,
-i.e., its vertices can be labelled with (0,1)-vectors of some fixed length such
-that the distance between any two vertices in the graph equals the Hamming
-distance of their labels.
+The code in this module that recognizes partial cubes is originally
+from the PADS library by David Eppstein, which is available at
+http://www.ics.uci.edu/~eppstein/PADS/ under the MIT license. It takes
+a quadratic time and has been described in [Eppstein2008]_.
 
-The code in this module is originally from the PADS library by David Eppstein,
-which is available at http://www.ics.uci.edu/~eppstein/PADS/ under the MIT
-license. The algorithm for partial cube recognition in quadratic time has been
-described in [Eppstein2008]_.
+For more information on partial cubes, see the
+:wikipedia:`Partial_cube`.
 
 REFERENCE:
 
@@ -17,6 +15,60 @@ REFERENCE:
   "Recognizing partial cubes in quadratic time",
   J. Graph Algorithms and Applications 15 (2): 269-293, 2011.
   Available at http://arxiv.org/abs/0705.1025
+
+Definitions
+-----------
+
+A **partial cube** is an isometric subgraph `G` of a
+:meth:`~sage.graphs.graph_generators.GraphGenerators.CubeGraph` (of
+possibly high dimension). Consequently, the vertices of `G` can be
+labelled with binary sequences in such a way that the distance between
+two vertices `u,v\in G` is the hamming distance between their labels.
+
+**Tokens** and their **action**: in the terminology of
+[Eppstein2008]_, a token represents a transition of the form:
+
+    *switch the k-th bit of the binary string from 0 to 1*
+
+Each token can be matched with a 'reversed' token, that performs the
+same switch in the opposite direction. Alternatively, a token can be
+seen as a set of disjoint (directed) edges of `G`, corresponding to
+the transitions. When a vertex `v\in G` is the source of such an edge,
+it is said that the token *acts* on `v`.
+
+Observations
+------------
+
+**Shortest paths**: in a hypercube, a shortest path between two
+vertices uses each token at most once. Furthermore, it cannot use both
+a token and it reverse.
+
+**Cycles**: a cycle in a partial cube is necessarily even, as
+hypercubes are bipartite. If an edge `e` of a cycle `C` belongs to a
+token `T`, then the edge opposite to `e` in `C` belongs to the reverse
+of `T`.
+
+**Incident edges**: all `2d_G(v)` arcs incident to a given vertex
+belong to as many different tokens.
+
+Recognition algorithm
+---------------------
+
+**Labeling**: Iteratively, the algorithm selects a vertex `v\in G`,
+which is naturally associated to `2d(v)` tokens. It then performs a
+breadth-first search from `v`, applying the previous observation on
+cycles to attribute a token to some of the edges it meets. None of the
+edges whose token remains undecided after this step can belong to one
+of those `2d(v)` tokens, by virtue of the observation on shortest
+paths.
+
+The labeled edges can then be simplified (contracted) if the previous
+step did not lead to a contradiction, and the procedure is applied
+again until the graph is empty and all edges are labeled.
+
+A partial cube is correctly labeled at this step, but some other
+graphs can also satisfy procedure. The remaining part of the
+algorithms checks (efficiently) that the labeling is consistent.
 
 Functions
 ---------
@@ -40,11 +92,12 @@ def breadth_first_level_search(G, start, ignore_direction=False, neighbors=None)
       graphs. If ``True``, searches across edges in either direction.
 
     - ``neighbors`` -- a function giving the neighbors of a vertex.
-      The function should take a vertex and return a list of
-      vertices.  For a graph, ``neighbors`` is by default the
-      :meth:`~GenericGraph.neighbor_iterator` function of the graph. For a
-      digraph, the ``neighbors`` function defaults to the
-      :meth:`~DiGraph.neighbor_out_iterator` function of the graph.
+      The function should take a vertex and return a list of vertices.
+      For a graph, ``neighbors`` is by default the
+      :meth:`~sage.graphs.generic_graph.GenericGraph.neighbor_iterator`
+      function of the graph. For a digraph, the ``neighbors`` function
+      defaults to the :meth:`~DiGraph.neighbor_out_iterator` function
+      of the graph.
 
     EXAMPLE::
 
@@ -96,11 +149,12 @@ def depth_first_traversal(G, start, ignore_direction=False,
       If True, searches across edges in either direction.
 
     - ``neighbors`` -- a function giving the neighbors of a vertex.
-      The function should take a vertex and return a list of
-      vertices.  For a graph, ``neighbors`` is by default the
-      :meth:`~GenericGraph.neighbor_iterator` function of the graph. For a
-      digraph, the ``neighbors`` function defaults to the
-      :meth:`~DiGraph.neighbor_out_iterator` function of the graph.
+      The function should take a vertex and return a list of vertices.
+      For a graph, ``neighbors`` is by default the
+      :meth:`~sage.graphs.generic_graph.GenericGraph.neighbor_iterator`
+      function of the graph. For a digraph, the ``neighbors`` function
+      defaults to the :meth:`~DiGraph.neighbor_out_iterator` function
+      of the graph.
 
     OUTPUT:
 
@@ -149,9 +203,16 @@ def is_partial_cube(G, certificate=False):
     r"""
     Test whether the given graph is a partial cube.
 
+    A partial cube is a graph that can be isometrically embedded into a
+    hypercube, i.e., its vertices can be labelled with (0,1)-vectors of some
+    fixed length such that the distance between any two vertices in the graph
+    equals the Hamming distance of their labels.
+
     Originally written by D. Eppstein for the PADS library
-    (http://www.ics.uci.edu/~eppstein/PADS/), see also [Eppstein2008]_.
-    The algorithm runs in O(n^2) time, where n is the number of vertices.
+    (http://www.ics.uci.edu/~eppstein/PADS/), see also
+    [Eppstein2008]_.  The algorithm runs in `O(n^2)` time, where `n`
+    is the number of vertices. See the documentation of
+    :mod:`~sage.graphs.partial_cube` for an overview of the algorithm.
 
     INPUT:
 
@@ -207,8 +268,20 @@ def is_partial_cube(G, certificate=False):
         sage: all(all(g.distance(u, v) == len([i for i in range(len(m[u])) if m[u][i] != m[v][i]]) for v in m) for u in m)
         True
 
+    A graph without vertices is trivially a partial cube::
+
+        sage: Graph().is_partial_cube(certificate = True)
+        (True, {})
+
     """
     G._scream_if_not_simple()
+
+    if G.order() == 0:
+        if certificate:
+            return (True, {})
+        else:
+            return True
+
     if certificate:
         fail = (False, None)
     else:
@@ -224,52 +297,56 @@ def is_partial_cube(G, certificate=False):
     if 1 << (2*G.size()//n) > n:
         return fail
 
+    # Check for bipartiteness.
+    # This ensures also that each contraction will be bipartite.
+    if not G.is_bipartite():
+        return fail
+
     # Set up data structures for algorithm:
-    # - CG: contracted graph at current stage of algorithm
-    # - UF: union find data structure representing known edge equivalences
-    # - NL: limit on number of remaining available labels
+    # - contracted: contracted graph at current stage of algorithm
+    # - unionfind: union find data structure representing known edge equivalences
+    # - available: limit on number of remaining available labels
     from sage.graphs.digraph import DiGraph
     from sage.graphs.graph import Graph
     from sage.sets.disjoint_set import DisjointSet
-    CG = DiGraph({v: {w: (v, w) for w in G[v]} for v in G})
-    UF = DisjointSet(CG.edges(labels = False))
-    NL = n-1
+    contracted = DiGraph({v: {w: (v, w) for w in G[v]} for v in G})
+    unionfind = DisjointSet(contracted.edges(labels = False))
+    available = n-1
 
     # Main contraction loop in place of the original algorithm's recursion
-    while CG.order() > 1:
-        if not Graph(CG).is_bipartite():
+    while contracted.order() > 1:
+        # Find max degree vertex in contracted, and update label limit
+        deg, root = max((contracted.out_degree(v), v) for v in contracted)
+        if deg > available:
             return fail
-
-        # Find max degree vertex in CG, and update label limit
-        deg, root = max((len(CG[v]), v) for v in CG)
-        if deg > NL:
-            return fail
-        NL -= deg
+        available -= deg
 
         # Set up bitvectors on vertices
-        bitvec = {v:0 for v in CG}
+        bitvec = {v:0 for v in contracted}
         neighbors = {}
-        for i, neighbor in enumerate(CG[root]):
+        for i, neighbor in enumerate(contracted[root]):
             bitvec[neighbor] = 1 << i
             neighbors[1 << i] = neighbor
 
         # Breadth first search to propagate bitvectors to the rest of the graph
-        for LG in breadth_first_level_search(CG, root):
-            for v in LG:
-                for w in LG[v]:
+        for level in breadth_first_level_search(contracted, root):
+            for v in level:
+                for w in level[v]:
                     bitvec[w] |= bitvec[v]
 
         # Make graph of labeled edges and union them together
-        labeled = Graph([CG.vertices(), []])
-        for v, w in CG.edge_iterator(labels = False):
+        labeled = Graph([contracted.vertices(), []])
+        for v, w in contracted.edge_iterator(labels = False):
             diff = bitvec[v]^bitvec[w]
             if not diff or bitvec[w] &~ bitvec[v] == 0:
                 continue    # zero edge or wrong direction
             if diff not in neighbors:
                 return fail
             neighbor = neighbors[diff]
-            UF.union(CG.edge_label(v, w), CG.edge_label(root, neighbor))
-            UF.union(CG.edge_label(w, v), CG.edge_label(neighbor, root))
+            unionfind.union(contracted.edge_label(v, w),
+                            contracted.edge_label(root, neighbor))
+            unionfind.union(contracted.edge_label(w, v),
+                            contracted.edge_label(neighbor, root))
             labeled.add_edge(v, w)
 
         # Map vertices to components of labeled-edge graph
@@ -279,40 +356,44 @@ def is_partial_cube(G, certificate=False):
                 component[v] = i
 
         # generate new compressed subgraph
-        NG = DiGraph(labeled.connected_components_number())
-        for v, w, t in CG.edge_iterator():
+        newgraph = DiGraph()
+        for v, w, t in contracted.edge_iterator():
             if bitvec[v] == bitvec[w]:
                 vi = component[v]
                 wi = component[w]
                 if vi == wi:
                     return fail
-                if wi in NG.neighbors_out(vi):
-                    UF.union(NG.edge_label(vi, wi), t)
+                if newgraph.has_edge(vi, wi):
+                    unionfind.union(newgraph.edge_label(vi, wi), t)
                 else:
-                    NG.add_edge(vi, wi, t)
-        CG = NG
+                    newgraph.add_edge(vi, wi, t)
+        contracted = newgraph
 
-    # Make a digraph with edges labeled by the equivalence classes in UF
-    g = DiGraph({v: {w: UF.find((v, w)) for w in G[v]} for v in G})
+    # Make a digraph with edges labeled by the equivalence classes in unionfind
+    g = DiGraph({v: {w: unionfind.find((v, w)) for w in G[v]} for v in G})
 
-    # Check that no two edges on a single vertex have the same label
-    action = {v: {} for v in g}
+    # Associates to a vertex the token that acts on it, an check that
+    # no two edges on a single vertex have the same label
+    action = {}
+    for v in g:
+        action[v] = set(t for _, _, t in g.edge_iterator(v))
+        if len(action[v]) != g.out_degree(v):
+            return fail
+
+    # Associate every token to its reverse
     reverse = {}
     for v, w, t in g.edge_iterator():
-        if t in action[v]:
-            return fail
-        action[v][t] = w
         rt = g.edge_label(w, v)
-        if t not in reverse:
-            reverse[t] = rt
-            reverse[rt] = t
+        reverse[t] = rt
+        reverse[rt] = t
+
     current = initialState = next(g.vertex_iterator())
 
     # Find list of tokens that lead to the initial state
     activeTokens = set()
-    for LG in breadth_first_level_search(g, initialState):
-        for v in LG:
-            for w in LG[v]:
+    for level in breadth_first_level_search(g, initialState):
+        for v in level:
+            for w in level[v]:
                 activeTokens.add(g.edge_label(w, v))
     for t in activeTokens:
         if reverse[t] in activeTokens:
