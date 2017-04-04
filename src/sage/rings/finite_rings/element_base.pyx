@@ -15,7 +15,7 @@ def is_FiniteFieldElement(x):
     """
     Returns if x is a finite field element.
 
-    EXAMPLE::
+    EXAMPLES::
 
         sage: from sage.rings.finite_rings.element_base import is_FiniteFieldElement
         sage: is_FiniteFieldElement(1)
@@ -324,7 +324,7 @@ cdef class FinitePolyExtElement(FiniteRingElement):
             sage: t_element
             3*b^2 + 2*b + 4
             sage: type(t_element)
-            <type 'sage.libs.cypari2.gen.gen'>
+            <type 'sage.libs.cypari2.gen.Gen'>
         """
         if var is None:
             var = self.parent().variable_name()
@@ -485,7 +485,7 @@ cdef class FinitePolyExtElement(FiniteRingElement):
         r"""
         Return the multiplicative order of this field element.
 
-        EXAMPLE::
+        EXAMPLES::
 
             sage: S.<a> = GF(5^3); S
             Finite Field in a of size 5^3
