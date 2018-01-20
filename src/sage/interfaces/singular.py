@@ -65,7 +65,7 @@ factorization::
     sage: R1 = singular.ring(0, '(x,y)', 'dp')
     sage: R1
     polynomial ring, over a field, global ordering
-    //   characteristic : 0
+    //   coefficients: QQ
     //   number of vars : 2
     //        block   1 : ordering dp
     //                  : names    x y
@@ -243,7 +243,7 @@ Groebner basis for some ideal, using Singular through Sage.
     sage: singular.lib('poly.lib')
     sage: singular.ring(32003, '(a,b,c,d,e,f)', 'lp')
             polynomial ring, over a field, global ordering
-            //   characteristic : 32003
+            //   coefficients: ZZ/32003
             //   number of vars : 6
             //        block   1 : ordering lp
             //                        : names    a b c d e f
@@ -320,6 +320,7 @@ see :trac:`11645`::
 from __future__ import print_function
 from __future__ import absolute_import
 from six.moves import range
+from six import integer_types, string_types
 
 import os
 import re
@@ -337,6 +338,7 @@ import sage.rings.integer
 
 from sage.misc.misc import get_verbose
 from sage.misc.superseded import deprecation
+from sage.docs.instancedoc import instancedoc
 
 from six import reraise as raise_
 
@@ -537,7 +539,7 @@ class Singular(ExtraTabCompletion, Expect):
 
             sage: filename = tmp_filename()
             sage: f = open(filename, 'w')
-            sage: f.write('int x = 2;\n')
+            sage: _ = f.write('int x = 2;\n')
             sage: f.close()
             sage: singular.read(filename)
             sage: singular.get('x')
@@ -815,7 +817,7 @@ class Singular(ExtraTabCompletion, Expect):
                 return True
             except TypeError:
                 pass
-        elif S is int or S is long:
+        elif S in integer_types:
             return True
         return None
 
@@ -901,7 +903,7 @@ class Singular(ExtraTabCompletion, Expect):
             x0*x1-x0*x2-x1*x2,
             x0^2*x2-x0*x2^2-x1*x2^2
         """
-        if isinstance(gens, str):
+        if isinstance(gens, string_types):
             gens = self(gens)
 
         if isinstance(gens, SingularElement):
@@ -1000,7 +1002,7 @@ class Singular(ExtraTabCompletion, Expect):
             sage: R = singular.ring(0, '(x,y,z)', 'dp')
             sage: R
             polynomial ring, over a field, global ordering
-            //   characteristic : 0
+            //   coefficients: QQ
             //   number of vars : 3
             //        block   1 : ordering dp
             //                  : names    x y z
@@ -1049,7 +1051,7 @@ class Singular(ExtraTabCompletion, Expect):
                            for x in vars[1:-1].split(',')])
             self.eval(s)
 
-        if check and isinstance(char, (int, long, sage.rings.integer.Integer)):
+        if check and isinstance(char, integer_types + (sage.rings.integer.Integer,)):
             if char != 0:
                 n = sage.rings.integer.Integer(char)
                 if not n.is_prime():
@@ -1080,7 +1082,7 @@ class Singular(ExtraTabCompletion, Expect):
             sage: S = singular.ring('real', '(a,b)', 'lp')
             sage: singular.current_ring()
             polynomial ring, over a field, global ordering
-            //   characteristic : 0 (real)
+            //   coefficients: float
             //   number of vars : 2
             //        block   1 : ordering lp
             //                  : names    a b
@@ -1088,7 +1090,7 @@ class Singular(ExtraTabCompletion, Expect):
             sage: singular.set_ring(R)
             sage: singular.current_ring()
             polynomial ring, over a field, local ordering
-            //   characteristic : 7
+            //   coefficients: ZZ/7
             //   number of vars : 2
             //        block   1 : ordering ds
             //                  : names    a b
@@ -1130,14 +1132,14 @@ class Singular(ExtraTabCompletion, Expect):
             sage: r = PolynomialRing(GF(127),3,'xyz', order='invlex')
             sage: r._singular_()
             polynomial ring, over a field, global ordering
-            //   characteristic : 127
+            //   coefficients: ZZ/127
             //   number of vars : 3
             //        block   1 : ordering rp
             //                  : names    x y z
             //        block   2 : ordering C
             sage: singular.current_ring()
             polynomial ring, over a field, global ordering
-            //   characteristic : 127
+            //   coefficients: ZZ/127
             //   number of vars : 3
             //        block   1 : ordering rp
             //                  : names    x y z
@@ -1260,6 +1262,7 @@ class Singular(ExtraTabCompletion, Expect):
         raise KeyboardInterrupt("Restarting %s (WARNING: all variables defined in previous session are now invalid)" % self)
 
     
+@instancedoc
 class SingularElement(ExtraTabCompletion, ExpectElement):
     
     def __init__(self, parent, type, value, is_name=False):
@@ -1288,7 +1291,7 @@ class SingularElement(ExtraTabCompletion, ExpectElement):
         self._session_number = parent._session_number
         self._get_using_file = False
 
-    def __repr__(self):
+    def _repr_(self):
         r"""
         Return string representation of ``self``.
 
@@ -1306,31 +1309,21 @@ class SingularElement(ExtraTabCompletion, ExpectElement):
             15625/103823*x^6*y.., y,
             0,                    1
 
-        Note that the output is truncated
+        Note that the output is truncated, and if ``self`` has a custom name then
+        it is used to print the items of the matrix, rather than abbreviating its
+        contents::
 
-        ::
-
-            sage: M= singular.matrix(2,2,"(25/47*x^2*y^4 + 63/127*x + 27)^3,y,0,1")
+            sage: M = singular.matrix(2,2,"(25/47*x^2*y^4 + 63/127*x + 27)^3,y,0,1")
             sage: M.rename('T')
             sage: M
             T[1,1],y,
             0,         1
 
-        if ``self`` has a custom name, it is used to print the
-        matrix, rather than abbreviating its contents
+
         """
-        try:
-            self._check_valid()
-        except ValueError:
-            return '(invalid object -- defined in terms of closed session)'
-        if self._get_using_file:
-            s = self.parent().get_using_file(self._name)
-        else:
-            s = self.parent().get(self._name)
+        s = super(SingularElement, self)._repr_()
         if self._name in s:
-            if hasattr(self, '__custom_name'):
-                s =  s.replace(self._name, self.__dict__['__custom_name'])
-            elif self.type() == 'matrix':
+            if (not hasattr(self, "__custom_name")) and self.type() == 'matrix':
                 s = self.parent().eval('pmat(%s,20)'%(self.name()))
         return s
 
@@ -1360,7 +1353,7 @@ class SingularElement(ExtraTabCompletion, ExpectElement):
             sage: cpQ.set_ring()
             sage: cpQ
             polynomial ring, over a field, global ordering
-            //   characteristic : 0
+            //   coefficients: QQ
             //   number of vars : 2
             //        block   1 : ordering dp
             //                  : names    x y
@@ -1619,7 +1612,7 @@ class SingularElement(ExtraTabCompletion, ExpectElement):
         from sage.all import PolynomialRing
         # Meanwhile Singulars quotient rings are also of 'ring' type, not 'qring' as it was in the past.
         # To find out if a singular ring is a quotient ring or not checking for ring type does not help
-        # and instead of that we we check if the quotient ring is zero or not:
+        # and instead of that we check if the quotient ring is zero or not:
         if (singular.eval('ideal(basering)==0')=='1'):
             return PolynomialRing(BR, names=singular.eval('varstr(basering)'), order=termorder_from_singular(singular))
         P = PolynomialRing(BR, names=singular.eval('varstr(basering)'), order=termorder_from_singular(singular))
@@ -1648,13 +1641,13 @@ class SingularElement(ExtraTabCompletion, ExpectElement):
 
         EXAMPLES::
 
-            sage: R = PolynomialRing(GF(2^8,'a'),2,'xy')
-            sage: f=R('a^20*x^2*y+a^10+x')
-            sage: f._singular_().sage_poly(R)==f
+            sage: R = PolynomialRing(GF(2^8,'a'), 'x,y')
+            sage: f = R('a^20*x^2*y+a^10+x')
+            sage: f._singular_().sage_poly(R) == f
             True
-            sage: R = PolynomialRing(GF(2^8,'a'),1,'x')
-            sage: f=R('a^20*x^3+x^2+a^10')
-            sage: f._singular_().sage_poly(R)==f
+            sage: R = PolynomialRing(GF(2^8,'a'), 'x', implementation="singular")
+            sage: f = R('a^20*x^3+x^2+a^10')
+            sage: f._singular_().sage_poly(R) == f
             True
 
         ::
@@ -1911,7 +1904,7 @@ class SingularElement(ExtraTabCompletion, ExpectElement):
 
             sage: singular('basering')
             polynomial ring, over a domain, global ordering
-            //   coeff. ring is : ZZ
+            //   coefficients: ZZ
             //   number of vars : 3
             //        block   1 : ordering lp
             //                  : names    x y z
@@ -1996,7 +1989,7 @@ class SingularElement(ExtraTabCompletion, ExpectElement):
             sage: S = singular.ring('real', '(a,b)', 'lp')
             sage: singular.current_ring()
             polynomial ring, over a field, global ordering
-            //   characteristic : 0 (real)
+            //   coefficients: float
             //   number of vars : 2
             //        block   1 : ordering lp
             //                  : names    a b
@@ -2004,7 +1997,7 @@ class SingularElement(ExtraTabCompletion, ExpectElement):
             sage: R.set_ring()
             sage: singular.current_ring()
             polynomial ring, over a field, local ordering
-            //   characteristic : 7
+            //   coefficients: ZZ/7
             //   number of vars : 2
             //        block   1 : ordering ds
             //                  : names    a b
@@ -2059,7 +2052,7 @@ class SingularElement(ExtraTabCompletion, ExpectElement):
             [4]:
                _[1]=0
             sage: RL.sage_structured_str_list()
-            ['0', ['x', 'y'], [['dp', '1,\n1 '], ['C', '0 ']], '0']
+            ['0', ['x', 'y'], [['dp', '1,\n1'], ['C', '0']], '0']
         """
         if not (self.type()=='list'):
             return str(self)
@@ -2172,12 +2165,14 @@ class SingularElement(ExtraTabCompletion, ExpectElement):
         else:
             self.parent().eval('attrib(%s,"%s",%d)'%(self.name(),name,value))
 
+
+@instancedoc
 class SingularFunction(ExpectFunction):
-    def _sage_doc_(self):
+    def _instancedoc_(self):
         """
         EXAMPLES::
 
-            sage: 'groebner' in singular.groebner._sage_doc_()
+            sage: 'groebner' in singular.groebner.__doc__
             True
         """
         if not nodes:
@@ -2208,14 +2203,16 @@ The Singular documentation for '%s' is given below.
         except KeyError:
             return prefix
 
+
+@instancedoc
 class SingularFunctionElement(FunctionElement):
-    def _sage_doc_(self):
+    def _instancedoc_(self):
         r"""
         EXAMPLES::
 
             sage: R = singular.ring(0, '(x,y,z)', 'dp')
             sage: A = singular.matrix(2,2)
-            sage: 'matrix_expression' in A.nrows._sage_doc_()
+            sage: 'matrix_expression' in A.nrows.__doc__
             True
         """
         if not nodes:
@@ -2254,13 +2251,13 @@ def reduce_load():
         sage: reduce_load()
         doctest:...: DeprecationWarning: This function is only used to unpickle invalid objects
         See http://trac.sagemath.org/18848 for details.
-        (invalid object -- defined in terms of closed session)
+        (invalid <class 'sage.interfaces.singular.SingularElement'> object -- The session in which this object was defined is no longer running.)
 
     By :trac:`18848`, pickling actually often works::
 
         sage: loads(dumps(singular.ring()))
         polynomial ring, over a field, global ordering
-        //   characteristic : 0
+        //   coefficients: QQ
         //   number of vars : 1
         //        block   1 : ordering lp
         //                  : names    x

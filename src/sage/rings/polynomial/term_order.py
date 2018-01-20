@@ -628,7 +628,7 @@ class TermOrder(SageObject):
            constructed. However, it is useful if block orders are
            to be constructed from this ``TermOrder`` object later.
 
-        TEST:
+        TESTS:
 
         We demonstrate that non-positive weights are refused and non-integral weights
         are converted to integers (and potentially rounded)::
@@ -1756,7 +1756,7 @@ class TermOrder(SageObject):
             '(lp(3),Dp(5),lp(2))'
             sage: P._singular_()
             polynomial ring, over a field, global ordering
-            //   characteristic : 127
+            //   coefficients: ZZ/127
             //   number of vars : 10
             //        block   1 : ordering lp
             //                  : names    x0 x1 x2
@@ -1766,7 +1766,7 @@ class TermOrder(SageObject):
             //                  : names    x8 x9
             //        block   4 : ordering C
 
-        TEST:
+        TESTS:
 
         The 'degneglex' ordering is somehow special, it looks like a block
         ordering in SINGULAR.
@@ -1784,7 +1784,7 @@ class TermOrder(SageObject):
             '(a(1:2),ls(2),a(1:2),ls(2))'
             sage: P._singular_()
             polynomial ring, over a field, global ordering
-            //   characteristic : 0
+            //   coefficients: QQ
             //   number of vars : 4
             //        block   1 : ordering a
             //                  : names    x0 x1
@@ -1820,7 +1820,7 @@ class TermOrder(SageObject):
             sage: T.singular_moreblocks()
             2
 
-        TEST:
+        TESTS:
 
         The 'degneglex' ordering is somehow special: SINGULAR handles it
         using an extra weight vector block.
