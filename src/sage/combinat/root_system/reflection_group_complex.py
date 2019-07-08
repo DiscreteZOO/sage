@@ -1423,8 +1423,8 @@ class ComplexReflectionGroup(UniqueRepresentation, PermutationGroup_generic):
         x = P.gens()
         for i in range(len(I)):
             I[i] = I[i].replace('^','**')
-            I[i] = re.compile('E(\d\d*)').sub(r'E(\1)', I[i])
-            I[i] = re.compile('(\d)E\(').sub(r'\1*E(', I[i])
+            I[i] = re.compile(r'E(\d\d*)').sub(r'E(\1)', I[i])
+            I[i] = re.compile(r'(\d)E\(').sub(r'\1*E(', I[i])
             for j in range(len(x)):
                 I[i] = I[i].replace('x%s'%j,'*x[%s]'%j)
             I[i] = I[i].replace("+*","+").replace("-*","-").replace("ER(5)","*(E(5)-E(5)**2-E(5)**3+E(5)**4)").lstrip("*")
@@ -1906,8 +1906,8 @@ class ComplexReflectionGroup(UniqueRepresentation, PermutationGroup_generic):
             sage: W = ReflectionGroup(["H",4])               # optional - gap3
             sage: W.coxeter_number()                         # optional - gap3
             30
-            sage: all([W.coxeter_number(chi).is_integer()    # optional - gap3
-            ....:     for chi in W.irreducible_characters()])
+            sage: all(W.coxeter_number(chi).is_integer()    # optional - gap3
+            ....:     for chi in W.irreducible_characters())
             True
             sage: W = ReflectionGroup(14)                    # optional - gap3
             sage: W.coxeter_number()                         # optional - gap3
