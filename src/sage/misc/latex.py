@@ -26,8 +26,12 @@ import random
 import re
 import shutil
 import subprocess
+import sys
 
-from six import iteritems, integer_types
+from six import iterkeys, integer_types
+
+from IPython.lib.pretty import MAX_SEQ_LENGTH, DICT_IS_ORDERED
+from IPython.lib.pretty import _sorted_for_pprint
 
 from sage.cpython.string  import str_to_bytes
 
@@ -347,6 +351,48 @@ def str_function(x):
     return x
 
 
+def set_function(x):
+    r"""
+    Returns the LaTeX code for a set ``x``.
+
+    INPUT:
+
+    - ``x`` -- a set
+
+    EXAMPLES::
+
+        sage: from sage.misc.latex import set_function
+        sage: x,y,z = var('x,y,z')
+        sage: print(set_function({(x/2, y^2)}))
+        \left\{\left(\frac{1}{2} \, x, y^{2}\right)\right\}
+        sage: s = frozenset([1, 2, x^2, sin(z^2), y/2])
+        sage: latex(s)  # random
+        \mathrm{frozenset}\left(\left\{1, 2, \frac{1}{2} \, y, \sin\left(z^{2}\right), x^{2}\right\}\right)
+
+    TESTS:
+
+    Empty sets::
+
+        sage: print(set_function(set()))
+        \left\{\right\}
+        sage: print(set_function(frozenset()))
+        \mathrm{frozenset}\left(\right)
+    """
+    head = x.__class__.__name__
+    is_set = isinstance(x, set)
+    if len(x) < MAX_SEQ_LENGTH:
+        x = _sorted_for_pprint(x)
+    data = "".join([r"\left\{",
+                    ", ".join(latex(elt) for elt in x),
+                    r"\right\}"])
+    if is_set:
+        return data
+    else:
+        if len(x) == 0:
+            data = ""
+        return r"\mathrm{%s}\left(%s\right)" % (head, data)
+
+
 def dict_function(x):
     r"""
     Returns the LaTeX code for a dictionary ``x``.
@@ -360,15 +406,17 @@ def dict_function(x):
         sage: from sage.misc.latex import dict_function
         sage: x,y,z = var('x,y,z')
         sage: print(dict_function({x/2: y^2}))
-        \left\{\frac{1}{2} \, x : y^{2}\right\}
+        \left\{{\frac{1}{2} \, x : y^{2}}\right\}
         sage: d = {(1,2,x^2): [sin(z^2), y/2]}
         sage: latex(d)
-        \left\{\left(1, 2, x^{2}\right) :
-               \left[\sin\left(z^{2}\right), \frac{1}{2} \, y\right]\right\}
+        \left\{{\left(1, 2, x^{2}\right) : \left[\sin\left(z^{2}\right), \frac{1}{2} \, y\right]}\right\}
     """
+    it = iterkeys(x)
+    if not DICT_IS_ORDERED and len(x) < MAX_SEQ_LENGTH:
+        it = _sorted_for_pprint(it)
     return "".join([r"\left\{",
-                    ", ".join(r"%s : %s" % (latex(key), latex(value))
-                              for key, value in iteritems(x)),
+                    r", ".join(r"{%s : %s}" % (latex(key), latex(x[key]))
+                                 for key in it),
                     r"\right\}"])
 
 # One can add to the latex_table in order to install latexing
@@ -407,7 +455,9 @@ latex_table = {type(None): None_function,
                bool: bool_function,
                dict: dict_function,
                float: float_function,
+               frozenset: set_function,
                list: list_function,
+               set: set_function,
                str: str_function,
                tuple: tuple_function,
                type(NotImplemented): builtin_constant_function,
