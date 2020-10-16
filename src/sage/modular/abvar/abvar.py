@@ -1167,7 +1167,7 @@ class ModularAbelianVariety_abstract(ParentWithBase):
         base_field = self.base_ring()
         return ModularAbelianVariety(groups, lattice, base_field, check=False)
 
-    def quotient(self, other):
+    def quotient(self, other, **kwds):
         """
         Compute the quotient of self and other, where other is either an
         abelian subvariety of self or a finite subgroup of self.
@@ -1176,6 +1176,7 @@ class ModularAbelianVariety_abstract(ParentWithBase):
 
 
         -  ``other`` - a finite subgroup or subvariety
+        -  further named arguments, that are currently ignored.
 
 
         OUTPUT: a pair (A, phi) with phi the quotient map from self to A
@@ -3704,7 +3705,7 @@ class ModularAbelianVariety_abstract(ParentWithBase):
             C = self.__complement
         except AttributeError:
             pass
-        if self.dimension() is 0:
+        if self.dimension() == 0:
             if A is None:
                 C = self.ambient_variety()
             else:

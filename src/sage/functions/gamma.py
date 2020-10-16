@@ -344,14 +344,30 @@ class Function_gamma_inc(BuiltinFunction):
             sage: integrate(-exp(-x)*x^(t-1), x, algorithm="fricas")            # optional - fricas
             gamma(t, x)
 
-    .. SEEALSO::
+        .. SEEALSO::
 
-        :meth:`gamma`
+            :meth:`gamma`
         """
         BuiltinFunction.__init__(self, "gamma", nargs=2, latex_name=r"\Gamma",
                 conversions={'maxima':'gamma_incomplete', 'mathematica':'Gamma',
                              'maple':'GAMMA', 'sympy':'uppergamma', 'fricas':'Gamma',
                              'giac':'ugamma'})
+
+    def _method_arguments(self, x, y):
+        r"""
+        TESTS::
+
+            sage: b = RBF(1, 1e-10)
+            sage: gamma(b)
+            [1.00000000 +/- 8.07e-10]
+            sage: gamma(CBF(b))
+            [1.00000000 +/- 8.07e-10]
+            sage: gamma(CBF(b), 4)
+            [0.01831564 +/- 2.65e-9]
+            sage: gamma(CBF(1), b)
+            [0.3678794412 +/- 6.54e-11]
+        """
+        return [x, y]
 
     def _eval_(self, x, y):
         """
@@ -493,14 +509,14 @@ class Function_gamma_inc_lower(BuiltinFunction):
             sage: gamma_inc_lower(x,x)._sympy_()
             lowergamma(x, x)
             sage: maxima(gamma_inc_lower(x,x))
-            gamma_greek(_SAGE_VAR_x,_SAGE_VAR_x)
+            gamma_incomplete_lower(_SAGE_VAR_x,_SAGE_VAR_x)
 
     .. SEEALSO::
 
         :class:`Function_gamma_inc`
         """
         BuiltinFunction.__init__(self, "gamma_inc_lower", nargs=2, latex_name=r"\gamma",
-                conversions={'maxima':'gamma_greek',
+                conversions={'maxima':'gamma_incomplete_lower',
                     'maple':'GAMMA', 'sympy':'lowergamma', 'giac':'igamma'})
 
     def _eval_(self, x, y):
