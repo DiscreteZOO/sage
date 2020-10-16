@@ -618,7 +618,7 @@ class AsymptoticExpansionGenerators(SageObject):
 
         - ``zeta`` -- (default: `1`) the location of the singularity.
 
-        - ``alpha`` -- (default: `0`) the pole order of the singularty.
+        - ``alpha`` -- (default: `0`) the pole order of the singularity.
 
         - ``beta`` -- (default: `0`) the order of the logarithmic singularity.
 
@@ -1371,7 +1371,7 @@ class AsymptoticExpansionGenerators(SageObject):
             :meth:`~AsymptoticExpansionGenerators.ImplicitExpansionPeriodicPart`.
 
 
-        TESTS::
+        TESTS:
 
         Omitting the precision parameter does not lead to an error (per default,
         the default series precision is a python integer, which led to an error

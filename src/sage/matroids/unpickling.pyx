@@ -24,9 +24,8 @@ AUTHORS:
 #  the License, or (at your option) any later version.
 #                  http://www.gnu.org/licenses/
 #*****************************************************************************
-from __future__ import absolute_import
 
-include 'sage/data_structures/bitset.pxi'
+from sage.data_structures.bitset_base cimport *
 import sage.matroids.matroid
 import sage.matroids.basis_exchange_matroid
 from .minor_matroid import MinorMatroid
